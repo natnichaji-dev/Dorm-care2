@@ -420,17 +420,90 @@ app.get('/api/stats/dashboard', (req, res) => {
 
 // Get Technicians List
 app.get('/api/technicians', (req, res) => {
-    db.all(`SELECT id, name, room as specialty, phone FROM users WHERE role = 'technician'`, [], (err, rows) => {
+    db.all(`SELECT u.id, u.name, u.email, u.room as specialty, u.phone, 
+            (SELECT COUNT(*) FROM repair_requests WHERE tech_id = u.id AND status IN ('assigned', 'in_progress')) as active_jobs
+            FROM users u WHERE u.role = 'technician'`, [], (err, rows) => {
         if (err) return res.status(500).json({ success: false, message: err.message });
         res.json({ success: true, data: rows });
     });
 });
 
+// Add Technician (Admin)
+app.post('/api/technicians', async (req, res) => {
+    const { name, specialty, phone, email } = req.body;
+    if (!name || !phone) {
+        return res.status(400).json({ success: false, message: 'กรุณากรอกชื่อและเบอร์โทรศัพท์ช่าง' });
+    }
+
+    try {
+        const defaultPassword = await bcrypt.hash('123456', 10);
+        const techEmail = email || `tech_${Date.now()}@dorm.com`;
+
+        db.run(
+            `INSERT INTO users (name, email, password_hash, role, building, room, phone) VALUES (?, ?, ?, 'technician', 'แผนกซ่อม', ?, ?)`,
+            [name, techEmail, defaultPassword, specialty || 'ช่างซ่อมทั่วไป', phone],
+            function (err) {
+                if (err) return res.status(500).json({ success: false, message: err.message });
+                res.status(201).json({ success: true, message: 'เพิ่มช่างซ่อมบำรุงสำเร็จ', id: this.lastID });
+            }
+        );
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
+
+// Delete Technician (Admin)
+app.delete('/api/technicians/:id', (req, res) => {
+    const techId = req.params.id;
+    db.run(`DELETE FROM users WHERE id = ? AND role = 'technician'`, [techId], function (err) {
+        if (err) return res.status(500).json({ success: false, message: err.message });
+        res.json({ success: true, message: 'ลบข้อมูลช่างเรียบร้อยแล้ว' });
+    });
+});
+
 // Get Residents List
 app.get('/api/residents', (req, res) => {
-    db.all(`SELECT id, name, email, building, room, phone, created_at FROM users WHERE role = 'resident'`, [], (err, rows) => {
+    db.all(`SELECT u.id, u.name, u.email, u.building, u.room, u.phone, u.created_at,
+            (SELECT COUNT(*) FROM repair_requests WHERE user_id = u.id) as request_count
+            FROM users u WHERE u.role = 'resident' ORDER BY u.id DESC`, [], (err, rows) => {
         if (err) return res.status(500).json({ success: false, message: err.message });
         res.json({ success: true, data: rows });
+    });
+});
+
+// Add Resident (Admin)
+app.post('/api/residents', async (req, res) => {
+    const { name, email, building, room, phone, password } = req.body;
+    if (!name || !email) {
+        return res.status(400).json({ success: false, message: 'กรุณากรอกชื่อและอีเมล' });
+    }
+
+    try {
+        const password_hash = await bcrypt.hash(password || '123456', 10);
+        db.run(
+            `INSERT INTO users (name, email, password_hash, role, building, room, phone) VALUES (?, ?, ?, 'resident', ?, ?, ?)`,
+            [name, email, password_hash, building || 'อาคาร A', room || '', phone || ''],
+            function (err) {
+                if (err) {
+                    if (err.message.includes('UNIQUE constraint failed')) {
+                        return res.status(400).json({ success: false, message: 'อีเมลนี้ถูกใช้งานแล้ว' });
+                    }
+                    return res.status(500).json({ success: false, message: err.message });
+                }
+                res.status(201).json({ success: true, message: 'เพิ่มผู้พักอาศัยสำเร็จ', id: this.lastID });
+            }
+        );
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
+
+// Delete Resident (Admin)
+app.delete('/api/residents/:id', (req, res) => {
+    const resId = req.params.id;
+    db.run(`DELETE FROM users WHERE id = ? AND role = 'resident'`, [resId], function (err) {
+        if (err) return res.status(500).json({ success: false, message: err.message });
+        res.json({ success: true, message: 'ลบข้อมูลผู้พักอาศัยเรียบร้อยแล้ว' });
     });
 });
 
@@ -458,9 +531,27 @@ app.post('/api/announcements', (req, res) => {
     );
 });
 
+// Delete Announcement (Admin)
+app.delete('/api/announcements/:id', (req, res) => {
+    const annId = req.params.id;
+    db.run(`DELETE FROM announcements WHERE id = ?`, [annId], function (err) {
+        if (err) return res.status(500).json({ success: false, message: err.message });
+        res.json({ success: true, message: 'ลบประกาศเรียบร้อยแล้ว' });
+    });
+});
+
+// Delete Repair Request (Admin)
+app.delete('/api/requests/:id', (req, res) => {
+    const reqId = req.params.id;
+    db.run(`DELETE FROM repair_requests WHERE id = ? OR request_code = ?`, [reqId, reqId], function (err) {
+        if (err) return res.status(500).json({ success: false, message: err.message });
+        res.json({ success: true, message: 'ลบรายการแจ้งซ่อมเรียบร้อยแล้ว' });
+    });
+});
+
 // Export Data (JSON / CSV)
 app.get('/api/export', (req, res) => {
-    db.all(`SELECT * FROM repair_requests`, [], (err, rows) => {
+    db.all(`SELECT * FROM repair_requests ORDER BY id DESC`, [], (err, rows) => {
         if (err) return res.status(500).json({ success: false, message: err.message });
         res.json({ success: true, data: rows, exported_at: new Date().toISOString() });
     });

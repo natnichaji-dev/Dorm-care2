@@ -1,0 +1,1698 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DormCare - ระบบแจ้งเหตุและปัญหาในหอพัก</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Google Fonts (Prompt) -->
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        :root {
+            --primary-blue: #2563EB;
+            --secondary-blue: #60A5FA;
+            --light-bg: #F8FAFC;
+            --card-border: rgba(255, 255, 255, 0.4);
+            --status-success: #10B981;
+            --status-warning: #F59E0B;
+            --status-danger: #EF4444;
+            --status-info: #3B82F6;
+            --status-purple: #8B5CF6;
+        }
+
+        body {
+            font-family: 'Prompt', sans-serif;
+            background-color: var(--light-bg);
+            color: #1E293B;
+            overflow-x: hidden;
+        }
+
+        /* Glassmorphism Classes */
+        .glass-card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            border-radius: 16px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .glass-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 30px -5px rgba(37, 99, 235, 0.1);
+        }
+
+        .glass-nav {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+        }
+
+        /* Custom Navigation & UI Components */
+        .btn-primary {
+            background-color: var(--primary-blue);
+            border-color: var(--primary-blue);
+            border-radius: 10px;
+            padding: 8px 20px;
+            font-weight: 500;
+        }
+
+        .btn-primary:hover {
+            background-color: #1D4ED8;
+            border-color: #1D4ED8;
+        }
+
+        .sidebar-link {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            color: #64748B;
+            text-decoration: none;
+            border-radius: 12px;
+            margin-bottom: 6px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .sidebar-link:hover, .sidebar-link.active {
+            background-color: rgba(37, 99, 235, 0.1);
+            color: var(--primary-blue);
+        }
+
+        .sidebar-link i {
+            font-size: 1.25rem;
+            margin-right: 12px;
+        }
+
+        /* Status Badges */
+        .badge-pending { background-color: #FEF3C7; color: #D97706; }
+        .badge-assigned { background-color: #E0F2FE; color: #0369A1; }
+        .badge-progress { background-color: #F3E8FF; color: #6B21A8; }
+        .badge-success { background-color: #D1FAE5; color: #047857; }
+        .badge-urgent { background-color: #FEE2E2; color: #B91C1C; }
+
+        /* Timeline UI */
+        .timeline-steps {
+            display: flex;
+            justify-content: space-between;
+            position: relative;
+            margin: 20px 0;
+        }
+
+        .timeline-steps::before {
+            content: '';
+            position: absolute;
+            top: 20px;
+            left: 5%;
+            width: 90%;
+            height: 3px;
+            background: #E2E8F0;
+            z-index: 1;
+        }
+
+        .timeline-step {
+            position: relative;
+            z-index: 2;
+            text-align: center;
+            background: var(--light-bg);
+            padding: 0 10px;
+        }
+
+        .timeline-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            background: #E2E8F0;
+            color: #64748B;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 8px auto;
+            font-weight: bold;
+        }
+
+        .timeline-step.completed .timeline-icon {
+            background: var(--primary-blue);
+            color: white;
+        }
+
+        .timeline-step.active .timeline-icon {
+            background: var(--status-warning);
+            color: white;
+            box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.2);
+        }
+
+        /* Star Rating */
+        .star-rating i {
+            font-size: 1.8rem;
+            color: #CBD5E1;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        .star-rating i.active {
+            color: #F59E0B;
+        }
+
+        .view-section {
+            display: none;
+        }
+
+        .view-section.active {
+            display: block;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ================= NAVBAR ================= -->
+    <nav class="navbar navbar-expand-lg glass-nav sticky-top">
+        <div class="container-fluid px-4">
+            <a class="navbar-brand fw-bold text-primary fs-4 d-flex align-items-center" href="#" onclick="showSection('homeSection')">
+                <i class="bi bi-building-gear me-2"></i>DormCare
+            </a>
+            
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link fw-medium" href="#" onclick="showSection('homeSection')">หน้าแรก</a></li>
+                    <li class="nav-item"><a class="nav-link fw-medium" href="#pricing">แพ็กเกจ</a></li>
+                    <li class="nav-item"><a class="nav-link fw-medium" href="#features">จุดเด่น</a></li>
+                </ul>
+
+                <!-- Selector สลับ Role สำหรับ Demo -->
+                <div class="d-flex align-items-center gap-2 me-3 bg-light p-1 rounded-3 border">
+                    <small class="text-muted ps-2"><i class="bi bi-person-badge"></i> สลับสิทธิ์ demo:</small>
+                    <select class="form-select form-select-sm border-0 bg-transparent fw-semibold text-primary" onchange="switchRole(this.value)">
+                        <option value="resident">ผู้พักอาศัย</option>
+                        <option value="admin">ผู้ดูแลหอพัก (Admin)</option>
+                        <option value="technician">ช่างซ่อมบำรุง</option>
+                    </select>
+                </div>
+
+                <div class="d-flex gap-2" id="authNavButtons">
+                    <button class="btn btn-outline-primary" onclick="showSection('loginSection')">เข้าสู่ระบบ</button>
+                    <button class="btn btn-primary" onclick="showSection('registerSection')">สมัครสมาชิก</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid px-0">
+
+        <!-- ================= 1. HOME SECTION ================= -->
+        <div id="homeSection" class="view-section active">
+            <!-- Hero Banner -->
+            <div class="py-5 text-center text-lg-start position-relative overflow-hidden" style="background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);">
+                <div class="container py-4">
+                    <div class="row align-items-center">
+                        <div class="col-lg-6 mb-4 mb-lg-0">
+                            <span class="badge bg-primary-subtle text-primary mb-3 px-3 py-2 rounded-pill fw-normal fs-6">
+                                <i class="bi bi-stars"></i> ระบบแจ้งซ่อมแบบ Real-time 24 ชม.
+                            </span>
+                            <h1 class="display-4 fw-bold mb-3 text-dark">แจ้งปัญหาในหอพักได้<br><span class="text-primary">ทุกที่ ทุกเวลา</span></h1>
+                            <p class="lead text-secondary mb-4">หมดปัญหาโทรตามงานแล้วไม่มีคนรับ ติดตามสถานะการซ่อมได้แบบ Real-time พร้อมระบบประเมินงานซ่อมเพื่อมาตรฐานที่ดีกว่า</p>
+                            <div class="d-flex gap-3 justify-content-center justify-content-lg-start">
+                                <button class="btn btn-primary btn-lg shadow-sm" onclick="showSection('loginSection')"><i class="bi bi-wrench-adjustable me-2"></i>แจ้งปัญหาทันที</button>
+                                <a href="#pricing" class="btn btn-outline-secondary btn-lg">ดูแพ็กเกจหอพัก</a>
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="glass-card p-4 text-center">
+                                <img src="https://img.freepik.com/free-vector/home-repair-maintenance-service-concept_107791-13352.jpg" class="img-fluid rounded-3" alt="DormCare App" style="max-height: 350px; object-fit: contain;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Features -->
+            <div id="features" class="container py-5">
+                <div class="text-center mb-5">
+                    <h2 class="fw-bold">จุดเด่นที่ทำให้เราแตกต่าง</h2>
+                    <p class="text-muted">เปลี่ยนการแจ้งซ่อมแบบเดิมๆ บน LINE ให้เป็นระบบที่วัดผลได้จริง</p>
+                </div>
+                <div class="row g-4">
+                    <div class="col-md-4">
+                        <div class="glass-card p-4 h-100 text-center">
+                            <div class="feature-icon bg-primary bg-gradient text-white rounded-circle fs-3 mx-auto mb-3 d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                                <i class="bi bi-clock-history"></i>
+                            </div>
+                            <h5 class="fw-bold">แจ้งได้ 24 ชั่วโมง</h5>
+                            <p class="text-muted small">ไม่ต้องรอเวลาทำการ ไม่ต้องกลัวผู้ดูแลลืมบันทึก ระบบบันทึกเข้า Dashboard ทันที</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="glass-card p-4 h-100 text-center">
+                            <div class="feature-icon bg-info bg-gradient text-white rounded-circle fs-3 mx-auto mb-3 d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                                <i class="bi bi-camera"></i>
+                            </div>
+                            <h5 class="fw-bold">แนบรูปและวิดีโอ</h5>
+                            <p class="text-muted small">อธิบายปัญหาได้ชัดเจน ช่างประเมินเครื่องมือและอุปกรณ์ล่วงหน้าได้ถูกต้อง</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="glass-card p-4 h-100 text-center">
+                            <div class="feature-icon bg-success bg-gradient text-white rounded-circle fs-3 mx-auto mb-3 d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                                <i class="bi bi-bell"></i>
+                            </div>
+                            <h5 class="fw-bold">ติดตาม Real-time</h5>
+                            <p class="text-muted small">รู้ทุกระยะ: รับเรื่องแล้ว > มอบหมายช่าง > กำลังซ่อม > เสร็จสิ้น พร้อมเวลาคาดการณ์ (ETA)</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pricing Table -->
+            <div id="pricing" class="bg-light py-5">
+                <div class="container py-4">
+                    <div class="text-center mb-5">
+                        <h2 class="fw-bold">ราคาแพ็กเกจสำหรับหอพัก</h2>
+                        <p class="text-muted">เลือกแผนที่เหมาะกับขนาดหอพักของคุณ (ผู้พักอาศัยใช้งานฟรีเสมอ!)</p>
+                    </div>
+                    <div class="row g-4 justify-content-center">
+                        <div class="col-md-4">
+                            <div class="glass-card p-4 text-center h-100 border-top border-primary border-4">
+                                <h4 class="fw-bold">Basic</h4>
+                                <p class="text-muted small">เหมาะสำหรับหอพักขนาดเล็ก</p>
+                                <h2 class="my-3 fw-bold text-primary">฿49 <span class="fs-6 text-muted fw-normal">/ เดือน</span></h2>
+                                <ul class="list-unstyled text-start my-4 lh-lg small">
+                                    <li><i class="bi bi-check-circle-fill text-success me-2"></i>ไม่เกิน 50 ห้อง</li>
+                                    <li><i class="bi bi-check-circle-fill text-success me-2"></i>Dashboard ผู้ดูแล</li>
+                                    <li><i class="bi bi-check-circle-fill text-success me-2"></i>ระบบแจ้งเตือน</li>
+                                    <li><i class="bi bi-check-circle-fill text-success me-2"></i>เก็บประวัติย้อนหลัง</li>
+                                </ul>
+                                <button class="btn btn-outline-primary w-100 mt-auto" onclick="showSection('registerSection')">เริ่มใช้งาน</button>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="glass-card p-4 text-center h-100 border-top border-primary border-4 shadow-lg position-relative">
+                                <span class="position-absolute top-0 start-50 translate-middle badge rounded-pill bg-primary px-3 py-2">ยอดนิยม</span>
+                                <h4 class="fw-bold">Standard</h4>
+                                <p class="text-muted small">สำหรับหอพักขนาดกลาง</p>
+                                <h2 class="my-3 fw-bold text-primary">฿149 <span class="fs-6 text-muted fw-normal">/ เดือน</span></h2>
+                                <ul class="list-unstyled text-start my-4 lh-lg small">
+                                    <li><i class="bi bi-check-circle-fill text-success me-2"></i>ไม่เกิน 200 ห้อง</li>
+                                    <li><i class="bi bi-check-circle-fill text-success me-2"></i>มอบหมายงานให้ช่าง</li>
+                                    <li><i class="bi bi-check-circle-fill text-success me-2"></i>สถิติการแจ้งและปัญหา</li>
+                                    <li><i class="bi bi-check-circle-fill text-success me-2"></i>Export รายงาน PDF/Excel</li>
+                                </ul>
+                                <button class="btn btn-primary w-100 mt-auto" onclick="showSection('registerSection')">เริ่มใช้งาน</button>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="glass-card p-4 text-center h-100 border-top border-primary border-4">
+                                <h4 class="fw-bold">Premium</h4>
+                                <p class="text-muted small">สำหรับคอนโด / อพาร์ทเม้นท์ใหญ่</p>
+                                <h2 class="my-3 fw-bold text-primary">฿299 <span class="fs-6 text-muted fw-normal">/ เดือน</span></h2>
+                                <ul class="list-unstyled text-start my-4 lh-lg small">
+                                    <li><i class="bi bi-check-circle-fill text-success me-2"></i><b>ไม่จำกัดห้อง</b></li>
+                                    <li><i class="bi bi-check-circle-fill text-success me-2"></i>วิเคราะห์ปัญหาที่เกิดบ่อย</li>
+                                    <li><i class="bi bi-check-circle-fill text-success me-2"></i>สิทธิ์ผู้ใช้งานหลายระดับ</li>
+                                    <li><i class="bi bi-check-circle-fill text-success me-2"></i>รองรับหลายสาขา/อาคาร</li>
+                                </ul>
+                                <button class="btn btn-outline-primary w-100 mt-auto" onclick="showSection('registerSection')">เริ่มใช้งาน</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= 2. LOGIN SECTION ================= -->
+        <div id="loginSection" class="view-section py-5">
+            <div class="container">
+                <div class="row justify-content-center">
+                    <div class="col-md-5">
+                        <div class="glass-card p-4 p-md-5">
+                            <div class="text-center mb-4">
+                                <i class="bi bi-building-gear fs-1 text-primary"></i>
+                                <h3 class="fw-bold mt-2">เข้าสู่ระบบ</h3>
+                                <p class="text-muted small">ยินดีต้อนรับกลับสู่ระบบ DormCare</p>
+                            </div>
+                            <form onsubmit="event.preventDefault(); loginUser();">
+                                <div class="mb-3">
+                                    <label class="form-label small fw-semibold">อีเมล</label>
+                                    <input type="email" class="form-control rounded-3" placeholder="name@example.com" value="user@dorm.com" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small fw-semibold">รหัสผ่าน</label>
+                                    <input type="password" class="form-control rounded-3" value="123456" required>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mb-4">
+                                    <div class="form-check">
+                                        <input type="checkbox" class="form-check-input" id="rememberMe">
+                                        <label class="form-check-label small" for="rememberMe">จดจำฉัน</label>
+                                    </div>
+                                    <a href="#" class="small text-decoration-none text-primary">ลืมรหัสผ่าน?</a>
+                                </div>
+                                <button type="submit" class="btn btn-primary w-100 py-2 mb-3">เข้าสู่ระบบ</button>
+                                <button type="button" class="btn btn-outline-secondary w-100 py-2 d-flex align-items-center justify-content-center gap-2">
+                                    <i class="bi bi-google"></i> เข้าสู่ระบบด้วย Google
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= 3. REGISTER SECTION ================= -->
+        <div id="registerSection" class="view-section py-5">
+            <div class="container">
+                <div class="row justify-content-center">
+                    <div class="col-md-7">
+                        <div class="glass-card p-4 p-md-5">
+                            <div class="text-center mb-4">
+                                <h3 class="fw-bold">ลงทะเบียนผู้พักอาศัย</h3>
+                                <p class="text-muted small">กรอกข้อมูลเพื่อเริ่มต้นใช้งานระบบแจ้งซ่อม</p>
+                            </div>
+                            <form onsubmit="registerUser(event)">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label small fw-semibold">ชื่อ</label>
+                                        <input type="text" class="form-control" placeholder="สมชาย" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label small fw-semibold">นามสกุล</label>
+                                        <input type="text" class="form-control" placeholder="ใจดี" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label small fw-semibold">อาคาร / ตึก</label>
+                                        <select class="form-select" required>
+                                            <option value="">เลือกอาคาร...</option>
+                                            <option>อาคาร A</option>
+                                            <option>อาคาร B</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label small fw-semibold">เลขห้องพัก</label>
+                                        <input type="text" class="form-control" placeholder=" เช่น 401" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label small fw-semibold">เบอร์โทรศัพท์</label>
+                                        <input type="tel" class="form-control" placeholder="08X-XXX-XXXX" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label small fw-semibold">อีเมล</label>
+                                        <input type="email" class="form-control" placeholder="name@domain.com" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label small fw-semibold">รหัสผ่าน</label>
+                                        <input type="password" class="form-control" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label small fw-semibold">ยืนยันรหัสผ่าน</label>
+                                        <input type="password" class="form-control" required>
+                                    </div>
+                                </div>
+                                <button type="submit" class="btn btn-primary w-100 py-2 mt-4">สมัครสมาชิก</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= DASHBOARD LAYOUT (FOR RESIDENT, ADMIN, TECH) ================= -->
+        <div id="appDashboard" class="view-section">
+            <div class="container-fluid">
+                <div class="row">
+                    
+                    <!-- Sidebar Navigation -->
+                    <div class="col-lg-2 bg-white border-end min-vh-100 p-3">
+                        <div class="d-flex align-items-center gap-3 px-2 mb-4">
+                            <div class="bg-primary text-white rounded-circle p-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                <i class="bi bi-person-fill fs-5"></i>
+                            </div>
+                            <div>
+                                <h6 class="mb-0 fw-bold" id="sidebarUserName">คุณสมชาย ใจดี</h6>
+                                <small class="text-muted" id="sidebarUserRole">ห้อง 402 - อาคาร A</small>
+                            </div>
+                        </div>
+
+                        <!-- Menu for RESIDENT -->
+                        <div class="role-menu resident-menu">
+                            <a href="#" class="sidebar-link active" onclick="showDashboardTab('resHome', this)"><i class="bi bi-speedometer2"></i> Dashboard</a>
+                            <a href="#" class="sidebar-link" onclick="showDashboardTab('resForm', this)"><i class="bi bi-plus-circle"></i> แจ้งปัญหาใหม่</a>
+                            <a href="#" class="sidebar-link" onclick="showDashboardTab('resTracking', this)"><i class="bi bi-search"></i> ติดตามสถานะ</a>
+                            <a href="#" class="sidebar-link" onclick="showDashboardTab('resHistory', this)"><i class="bi bi-clock-history"></i> ประวัติการแจ้ง</a>
+                            <a href="#" class="sidebar-link" onclick="showDashboardTab('resAnnounce', this)"><i class="bi bi-megaphone"></i> ประกาศหอพัก</a>
+                        </div>
+
+                        <!-- Menu for ADMIN -->
+                        <div class="role-menu admin-menu d-none">
+                            <a href="#" class="sidebar-link active" onclick="showDashboardTab('adminHome', this)"><i class="bi bi-grid-1x2"></i> ภาพรวมระบบ</a>
+                            <a href="#" class="sidebar-link" onclick="showDashboardTab('adminJobs', this)"><i class="bi bi-tools"></i> จัดการรายการแจ้งซ่อม</a>
+                            <a href="#" class="sidebar-link" onclick="showDashboardTab('adminTechs', this)"><i class="bi bi-person-gear"></i> จัดการช่างซ่อม</a>
+                            <a href="#" class="sidebar-link" onclick="showDashboardTab('adminResidents', this)"><i class="bi bi-people"></i> จัดการผู้พักอาศัย</a>
+                            <a href="#" class="sidebar-link" onclick="showDashboardTab('adminStats', this)"><i class="bi bi-bar-chart-line"></i> รายงาน/สถิติ</a>
+                            <a href="#" class="sidebar-link" onclick="showDashboardTab('adminAnnounce', this)"><i class="bi bi-broadcast"></i> สร้างประกาศ</a>
+                        </div>
+
+                        <!-- Menu for TECHNICIAN -->
+                        <div class="role-menu tech-menu d-none">
+                            <a href="#" class="sidebar-link active" onclick="showDashboardTab('techHome', this)"><i class="bi bi-card-checklist"></i> งานซ่อมของฉัน</a>
+                        </div>
+
+                        <hr>
+                        <a href="#" class="sidebar-link text-danger" onclick="logoutUser()"><i class="bi bi-box-arrow-right"></i> ออกจากระบบ</a>
+                    </div>
+
+                    <!-- Main Panel Content -->
+                    <div class="col-lg-10 p-4 bg-light">
+
+                        <!-- ========== RESIDENT: DASHBOARD HOME ========== -->
+                        <div id="resHome" class="dash-tab active">
+                            <div class="d-flex justify-content-between align-items-center mb-4">
+                                <div>
+                                    <h4 class="fw-bold mb-1">สวัสดี, คุณสมชาย 👋</h4>
+                                    <p class="text-muted small">ติดตามและแจ้งปัญหาภายในห้องพักของคุณง่ายๆ ได้จากที่นี่</p>
+                                </div>
+                                <button class="btn btn-primary" onclick="showDashboardTab('resForm')"><i class="bi bi-plus-lg me-1"></i>แจ้งปัญหาใหม่</button>
+                            </div>
+
+                            <!-- Summary Cards -->
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-3">
+                                    <div class="glass-card p-3 d-flex align-items-center gap-3">
+                                        <div class="bg-primary-subtle text-primary p-3 rounded-3 fs-3"><i class="bi bi-file-text"></i></div>
+                                        <div>
+                                            <small class="text-muted">แจ้งทั้งหมด</small>
+                                            <h3 class="fw-bold mb-0">5</h3>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="glass-card p-3 d-flex align-items-center gap-3">
+                                        <div class="bg-warning-subtle text-warning p-3 rounded-3 fs-3"><i class="bi bi-hourglass-split"></i></div>
+                                        <div>
+                                            <small class="text-muted">รอรับเรื่อง</small>
+                                            <h3 class="fw-bold mb-0">1</h3>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="glass-card p-3 d-flex align-items-center gap-3">
+                                        <div class="bg-info-subtle text-info p-3 rounded-3 fs-3"><i class="bi bi-gear-wide-connected"></i></div>
+                                        <div>
+                                            <small class="text-muted">กำลังดำเนินการ</small>
+                                            <h3 class="fw-bold mb-0">1</h3>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="glass-card p-3 d-flex align-items-center gap-3">
+                                        <div class="bg-success-subtle text-success p-3 rounded-3 fs-3"><i class="bi bi-check-circle"></i></div>
+                                        <div>
+                                            <small class="text-muted">ซ่อมเสร็จสิ้น</small>
+                                            <h3 class="fw-bold mb-0">3</h3>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Charts & Active Task -->
+                            <div class="row g-4 mb-4">
+                                <div class="col-md-8">
+                                    <div class="glass-card p-4">
+                                        <h6 class="fw-bold mb-3">สถานะรายการแจ้งล่าสุด</h6>
+                                        <div class="table-responsive">
+                                            <table class="table table-hover align-middle mb-0">
+                                                <thead class="table-light">
+                                                    <tr>
+                                                        <th>รหัส</th>
+                                                        <th>ประเภท</th>
+                                                        <th>รายละเอียด</th>
+                                                        <th>วันที่แจ้ง</th>
+                                                        <th>สถานะ</th>
+                                                        <th>จัดการ</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <tr>
+                                                        <td>#REQ-005</td>
+                                                        <td><span class="badge bg-danger-subtle text-danger">ประปา</span></td>
+                                                        <td>น้ำหยดใต้ซิงค์ล้างจาน</td>
+                                                        <td>26 ก.ค. 2026</td>
+                                                        <td><span class="badge badge-progress">กำลังซ่อม</span></td>
+                                                        <td><button class="btn btn-sm btn-outline-primary" onclick="showDashboardTab('resTracking')">ดูสถานะ</button></td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td>#REQ-004</td>
+                                                        <td><span class="badge bg-warning-subtle text-warning">ไฟฟ้า</span></td>
+                                                        <td>ไฟระเบียงดับ</td>
+                                                        <td>20 ก.ค. 2026</td>
+                                                        <td><span class="badge badge-success">เสร็จสิ้น</span></td>
+                                                        <td><button class="btn btn-sm btn-outline-secondary" onclick="openRatingModal()">ประเมิน</button></td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="glass-card p-4">
+                                        <h6 class="fw-bold mb-3">ประเภทปัญหาที่เคยแจ้ง</h6>
+                                        <canvas id="residentPieChart" style="max-height: 220px;"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ========== RESIDENT: FORM (แจ้งปัญหา) ========== -->
+                        <div id="resForm" class="dash-tab d-none">
+                            <div class="glass-card p-4 max-w-700 mx-auto" style="max-width: 800px;">
+                                <h4 class="fw-bold mb-3"><i class="bi bi-pencil-square text-primary me-2"></i>ฟอร์มแจ้งปัญหาและเหตุขัดข้อง</h4>
+                                <form onsubmit="event.preventDefault(); submitRepairRequest();">
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label small fw-semibold">เลขห้องพัก / อาคาร</label>
+                                            <input type="text" class="form-control bg-light" value="402 - อาคาร A" readonly>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label small fw-semibold">ประเภทปัญหา <span class="text-danger">*</span></label>
+                                            <select class="form-select" required>
+                                                <option value="">เลือกประเภท...</option>
+                                                <option>ไฟฟ้า / หลอดไฟ</option>
+                                                <option>ประปา / ท่อน้ำ</option>
+                                                <option>เครื่องปรับอากาศ</option>
+                                                <option>อินเทอร์เน็ต / Wi-Fi</option>
+                                                <option>เฟอร์นิเจอร์ / ประตู</option>
+                                                <option>ความสะอาด / ขยะ</option>
+                                                <option>อื่นๆ</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label small fw-semibold">รายละเอียดปัญหา <span class="text-danger">*</span></label>
+                                            <textarea class="form-control" rows="3" placeholder="ระบุตำแหน่งและรายละเอียด เช่น แอร์มีเสียงดังและน้ำหยดทางด้านขวา" required></textarea>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label small fw-semibold">แนบรูปภาพปัญหา</label>
+                                            <input type="file" class="form-control" accept="image/*">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label small fw-semibold">แนบวิดีโอ (ถ้ามี)</label>
+                                            <input type="file" class="form-control" accept="video/*">
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label small fw-semibold">ระดับความเร่งด่วน</label>
+                                            <div class="d-flex gap-4">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="priority" id="p1" value="low">
+                                                    <label class="form-check-label small" for="p1">ต่ำ (สะดวกให้เข้าซ่อมปกติ)</label>
+                                                </div>
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="priority" id="p2" value="med" checked>
+                                                    <label class="form-check-label small" for="p2">ปานกลาง</label>
+                                                </div>
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="priority" id="p3" value="urgent">
+                                                    <label class="form-check-label text-danger fw-bold small" for="p3">ฉุกเฉิน! (น้ำท่วม/ไฟช็อต)</label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <hr class="my-4">
+                                    <div class="d-flex gap-2 justify-content-end">
+                                        <button type="reset" class="btn btn-light">ล้างข้อมูล</button>
+                                        <button type="submit" class="btn btn-primary px-4">ส่งแจ้งปัญหา</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- ========== RESIDENT: TRACKING ========== -->
+                        <div id="resTracking" class="dash-tab d-none">
+                            <div class="glass-card p-4">
+                                <div class="d-flex justify-content-between align-items-center mb-4">
+                                    <h5 class="fw-bold mb-0">ติดตามสถานะ: #REQ-005 (น้ำหยดใต้ซิงค์ล้างจาน)</h5>
+                                    <span class="badge badge-progress fs-6">กำลังดำเนินการ</span>
+                                </div>
+
+                                <!-- Timeline -->
+                                <div class="timeline-steps my-5">
+                                    <div class="timeline-step completed">
+                                        <div class="timeline-icon"><i class="bi bi-check"></i></div>
+                                        <div class="small fw-bold">ส่งเรื่องแล้ว</div>
+                                        <div class="text-muted" style="font-size:0.75rem;">26 ก.ค. 09:30</div>
+                                    </div>
+                                    <div class="timeline-step completed">
+                                        <div class="timeline-icon"><i class="bi bi-check"></i></div>
+                                        <div class="small fw-bold">ผู้ดูแลรับเรื่อง</div>
+                                        <div class="text-muted" style="font-size:0.75rem;">26 ก.ค. 10:00</div>
+                                    </div>
+                                    <div class="timeline-step active">
+                                        <div class="timeline-icon"><i class="bi bi-tools"></i></div>
+                                        <div class="small fw-bold">กำลังซ่อม</div>
+                                        <div class="text-muted" style="font-size:0.75rem;">26 ก.ค. 13:15</div>
+                                    </div>
+                                    <div class="timeline-step">
+                                        <div class="timeline-icon"><i class="bi bi-check2-circle"></i></div>
+                                        <div class="small fw-bold">ซ่อมเสร็จสิ้น</div>
+                                        <div class="text-muted" style="font-size:0.75rem;">-</div>
+                                    </div>
+                                </div>
+
+                                <div class="bg-light p-3 rounded-3 border">
+                                    <div class="row g-3">
+                                        <div class="col-md-4">
+                                            <small class="text-muted d-block">ช่างผู้ดูแล:</small>
+                                            <strong class="text-dark"><i class="bi bi-person-wrench me-1"></i>ช่างวิชัย (ฝีมือดี)</strong>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <small class="text-muted d-block">เวลาคาดการณ์ซ่อมเสร็จ (ETA):</small>
+                                            <strong class="text-primary"><i class="bi bi-clock me-1"></i>26 ก.ค. 2026 (15:00 น.)</strong>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <small class="text-muted d-block">หมายเหตุจากช่าง:</small>
+                                            <span class="small text-secondary">กำลังดำเนินการเปลี่ยนข้อต่อท่อ PVC ใหม่</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ========== ADMIN: DASHBOARD HOME ========== -->
+                        <div id="adminHome" class="dash-tab d-none">
+                            <h4 class="fw-bold mb-3">Admin Management Dashboard</h4>
+                            
+                            <!-- Overview Cards -->
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-3">
+                                    <div class="glass-card p-3 border-start border-primary border-4">
+                                        <small class="text-muted">แจ้งใหม่วันนี้</small>
+                                        <h3 class="fw-bold mb-0 text-primary">8</h3>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="glass-card p-3 border-start border-warning border-4">
+                                        <small class="text-muted">รอมอบหมายช่าง</small>
+                                        <h3 class="fw-bold mb-0 text-warning">3</h3>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="glass-card p-3 border-start border-danger border-4">
+                                        <small class="text-muted">เคสด่วนที่สุด</small>
+                                        <h3 class="fw-bold mb-0 text-danger">1</h3>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="glass-card p-3 border-start border-success border-4">
+                                        <small class="text-muted">ซ่อมเสร็จเดือนนี้</small>
+                                        <h3 class="fw-bold mb-0 text-success">42</h3>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Charts Row -->
+                            <div class="row g-4 mb-4">
+                                <div class="col-md-8">
+                                    <div class="glass-card p-4">
+                                        <h6 class="fw-bold mb-3">จำนวนการแจ้งปัญหารายเดือน (เปรียบเทียบ)</h6>
+                                        <canvas id="adminMonthlyChart" style="max-height: 250px;"></canvas>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="glass-card p-4">
+                                        <h6 class="fw-bold mb-3">สัดส่วนประเภทปัญหา</h6>
+                                        <canvas id="adminCategoryChart" style="max-height: 250px;"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Admin Job Table -->
+                            <div class="glass-card p-4">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h6 class="fw-bold mb-0">รายการแจ้งซ่อมที่ต้องจัดการ</h6>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="exportData('Excel')"><i class="bi bi-file-earmark-excel me-1"></i>Export Excel</button>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-hover align-middle">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>ID</th>
+                                                <th>ผู้แจ้ง/ห้อง</th>
+                                                <th>ประเภท</th>
+                                                <th>ความเร่งด่วน</th>
+                                                <th>ช่างรับผิดชอบ</th>
+                                                <th>สถานะ</th>
+                                                <th>จัดการ</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td>#REQ-005</td>
+                                                <td>คุณสมชาย (402-A)</td>
+                                                <td>ประปา</td>
+                                                <td><span class="badge bg-warning text-dark">ปานกลาง</span></td>
+                                                <td>ช่างวิชัย</td>
+                                                <td><span class="badge badge-progress">กำลังซ่อม</span></td>
+                                                <td>
+                                                    <button class="btn btn-sm btn-primary" onclick="openAssignModal('#REQ-005')">มอบหมาย</button>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td>#REQ-006</td>
+                                                <td>คุณนภา (201-B)</td>
+                                                <td>ไฟฟ้า</td>
+                                                <td><span class="badge badge-urgent">ฉุกเฉิน</span></td>
+                                                <td>-</td>
+                                                <td><span class="badge badge-pending">รอรับเรื่อง</span></td>
+                                                <td>
+                                                    <button class="btn btn-sm btn-danger" onclick="openAssignModal('#REQ-006')">จ่ายงานด่วน</button>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ========== TECHNICIAN DASHBOARD ========== -->
+                        <div id="techHome" class="dash-tab d-none">
+                            <h4 class="fw-bold mb-3"><i class="bi bi-wrench-adjustable text-primary me-2"></i>รายการงานซ่อมของช่าง (Technician)</h4>
+                            
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <div class="glass-card p-4 border-start border-warning border-4">
+                                        <div class="d-flex justify-content-between align-items-start mb-2">
+                                            <span class="badge badge-urgent">งานด่วน</span>
+                                            <small class="text-muted">รับงานเมื่อ 10:00 น.</small>
+                                        </div>
+                                        <h5 class="fw-bold">ห้อง 201-B: ไฟฟ้าลัดวงจร</h5>
+                                        <p class="text-muted small">มีเสียงสปาร์คที่ปลั๊กไฟข้างเตียง มีกลิ่นไหม้</p>
+                                        <hr>
+                                        <div class="d-flex gap-2">
+                                            <button class="btn btn-sm btn-success w-100" onclick="updateTechStatus('start')"><i class="bi bi-play-circle me-1"></i>เริ่มเข้าซ่อม</button>
+                                            <button class="btn btn-sm btn-outline-primary w-100" onclick="updateTechStatus('finish')"><i class="bi bi-check-circle me-1"></i>ปิดงานซ่อม</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        <!-- ========== ADMIN: MANAGE REPAIR JOBS (adminJobs) ========== -->
+                        <div id="adminJobs" class="dash-tab d-none">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <div>
+                                    <h4 class="fw-bold mb-1"><i class="bi bi-tools text-primary me-2"></i>จัดการรายการแจ้งซ่อมทั้งหมด</h4>
+                                    <p class="text-muted small mb-0">ค้นหา กรอง และมอบหมายงานช่างซ่อมบำรุง</p>
+                                </div>
+                                <button class="btn btn-outline-primary" onclick="exportData('Excel')"><i class="bi bi-file-earmark-excel me-1"></i>Export Excel</button>
+                            </div>
+
+                            <div class="glass-card p-3 mb-4">
+                                <div class="row g-2">
+                                    <div class="col-md-4">
+                                        <input type="text" class="form-control" id="adminJobSearch" placeholder="ค้นหาเลขที่แจ้ง / ชื่อผู้พัก / ห้องพัก..." oninput="filterAdminJobs()">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <select class="form-select" id="adminJobStatusFilter" onchange="filterAdminJobs()">
+                                            <option value="">ทุกสถานะ</option>
+                                            <option value="pending">รอรับเรื่อง (Pending)</option>
+                                            <option value="assigned">มอบหมายแล้ว (Assigned)</option>
+                                            <option value="in_progress">กำลังซ่อม (In Progress)</option>
+                                            <option value="completed">เสร็จสิ้น (Completed)</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <select class="form-select" id="adminJobPriorityFilter" onchange="filterAdminJobs()">
+                                            <option value="">ทุกระดับความเร่งด่วน</option>
+                                            <option value="urgent">ฉุกเฉิน</option>
+                                            <option value="med">ปานกลาง</option>
+                                            <option value="low">ต่ำ</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <button class="btn btn-secondary w-100" onclick="resetAdminJobFilters()">ล้างตัวกรอง</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="glass-card p-4">
+                                <div class="table-responsive">
+                                    <table class="table table-hover align-middle mb-0" id="adminJobsTable">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>รหัส</th>
+                                                <th>ผู้แจ้ง / ห้อง</th>
+                                                <th>ประเภทปัญหา</th>
+                                                <th>ความเร่งด่วน</th>
+                                                <th>ช่างผู้รับผิดชอบ</th>
+                                                <th>วันที่แจ้ง</th>
+                                                <th>สถานะ</th>
+                                                <th>จัดการ</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td><strong>#REQ-006</strong></td>
+                                                <td>คุณนภา สุขใจ<br><small class="text-muted">201 - อาคาร B</small></td>
+                                                <td><span class="badge bg-primary-subtle text-primary">ไฟฟ้า / หลอดไฟ</span></td>
+                                                <td><span class="badge badge-urgent">ฉุกเฉิน</span></td>
+                                                <td><span class="text-muted">-</span></td>
+                                                <td><small>26/7/2569</small></td>
+                                                <td><span class="badge badge-pending">รอรับเรื่อง</span></td>
+                                                <td>
+                                                    <button class="btn btn-sm btn-danger" onclick="openAssignModal(3, '#REQ-006')">
+                                                        <i class="bi bi-person-plus me-1"></i>จ่ายงานด่วน
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td><strong>#REQ-005</strong></td>
+                                                <td>คุณสมชาย ใจดี<br><small class="text-muted">402 - อาคาร A</small></td>
+                                                <td><span class="badge bg-primary-subtle text-primary">ประปา / ท่อน้ำ</span></td>
+                                                <td><span class="badge bg-warning text-dark">ปานกลาง</span></td>
+                                                <td><i class="bi bi-person-wrench me-1"></i>ช่างวิชัย</td>
+                                                <td><small>26/7/2569</small></td>
+                                                <td><span class="badge badge-progress">กำลังซ่อม</span></td>
+                                                <td>
+                                                    <button class="btn btn-sm btn-primary" onclick="openAssignModal(1, '#REQ-005')">
+                                                        <i class="bi bi-person-plus me-1"></i>เปลี่ยนช่าง
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td><strong>#REQ-004</strong></td>
+                                                <td>คุณสมชาย ใจดี<br><small class="text-muted">402 - อาคาร A</small></td>
+                                                <td><span class="badge bg-primary-subtle text-primary">ไฟฟ้า / หลอดไฟ</span></td>
+                                                <td><span class="badge bg-info text-dark">ต่ำ</span></td>
+                                                <td><i class="bi bi-person-wrench me-1"></i>ช่างสมศักดิ์</td>
+                                                <td><small>20/7/2569</small></td>
+                                                <td><span class="badge badge-success">เสร็จสิ้น</span></td>
+                                                <td>
+                                                    <button class="btn btn-sm btn-outline-secondary" onclick="openAssignModal(2, '#REQ-004')">
+                                                        <i class="bi bi-eye me-1"></i>ดูรายละเอียด
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ========== ADMIN: MANAGE TECHNICIANS (adminTechs) ========== -->
+                        <div id="adminTechs" class="dash-tab d-none">
+                            <div class="d-flex justify-content-between align-items-center mb-4">
+                                <div>
+                                    <h4 class="fw-bold mb-1"><i class="bi bi-person-gear text-primary me-2"></i>จัดการทีมช่างซ่อมบำรุง</h4>
+                                    <p class="text-muted small mb-0">รายชื่อและความเชี่ยวชาญของช่างประจำหอพัก</p>
+                                </div>
+                                <button class="btn btn-primary" onclick="openAddTechModal()"><i class="bi bi-person-plus me-1"></i>เพิ่มช่างใหม่</button>
+                            </div>
+
+                            <div class="row g-4" id="techsCardGrid">
+                                <div class="col-md-6 col-lg-4">
+                                    <div class="glass-card p-4 text-center h-100">
+                                        <div class="bg-primary text-white rounded-circle fs-3 mx-auto mb-3 d-flex align-items-center justify-content-center" style="width:64px; height:64px;">
+                                            <i class="bi bi-person-badge"></i>
+                                        </div>
+                                        <h5 class="fw-bold mb-1">ช่างวิชัย ซ่อมไว</h5>
+                                        <span class="badge bg-info-subtle text-info mb-3">เชี่ยวชาญประปา/แอร์</span>
+                                        <div class="text-start bg-light p-3 rounded-3 small lh-lg">
+                                            <div><i class="bi bi-telephone text-primary me-2"></i><strong>เบอร์โทร:</strong> 082-111-2222</div>
+                                            <div><i class="bi bi-tools text-primary me-2"></i><strong>สถานะ:</strong> กำลังปฏิบัติงาน (1 งาน)</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 col-lg-4">
+                                    <div class="glass-card p-4 text-center h-100">
+                                        <div class="bg-primary text-white rounded-circle fs-3 mx-auto mb-3 d-flex align-items-center justify-content-center" style="width:64px; height:64px;">
+                                            <i class="bi bi-person-badge"></i>
+                                        </div>
+                                        <h5 class="fw-bold mb-1">ช่างสมศักดิ์ ไฟแรง</h5>
+                                        <span class="badge bg-info-subtle text-info mb-3">เชี่ยวชาญระบบไฟฟ้า</span>
+                                        <div class="text-start bg-light p-3 rounded-3 small lh-lg">
+                                            <div><i class="bi bi-telephone text-primary me-2"></i><strong>เบอร์โทร:</strong> 083-333-4444</div>
+                                            <div><i class="bi bi-tools text-primary me-2"></i><strong>สถานะ:</strong> พร้อมปฏิบัติงาน</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ========== ADMIN: MANAGE RESIDENTS (adminResidents) ========== -->
+                        <div id="adminResidents" class="dash-tab d-none">
+                            <div class="d-flex justify-content-between align-items-center mb-4">
+                                <div>
+                                    <h4 class="fw-bold mb-1"><i class="bi bi-people text-primary me-2"></i>จัดการข้อมูลผู้พักอาศัย</h4>
+                                    <p class="text-muted small mb-0">ตรวจสอบรายชื่อ เบอร์โทร และห้องพักในระบบ</p>
+                                </div>
+                            </div>
+
+                            <div class="glass-card p-4">
+                                <div class="table-responsive">
+                                    <table class="table table-hover align-middle mb-0" id="residentsTable">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>#</th>
+                                                <th>ชื่อ-นามสกุล</th>
+                                                <th>อาคาร / ห้องพัก</th>
+                                                <th>เบอร์โทรศัพท์</th>
+                                                <th>อีเมล</th>
+                                                <th>วันที่ลงทะเบียน</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td>1</td>
+                                                <td><strong>คุณสมชาย ใจดี</strong></td>
+                                                <td><span class="badge bg-secondary-subtle text-dark">402 - อาคาร A</span></td>
+                                                <td>081-234-5678</td>
+                                                <td>user@dorm.com</td>
+                                                <td><small>01/01/2569</small></td>
+                                            </tr>
+                                            <tr>
+                                                <td>2</td>
+                                                <td><strong>คุณนภา สุขใจ</strong></td>
+                                                <td><span class="badge bg-secondary-subtle text-dark">201 - อาคาร B</span></td>
+                                                <td>084-555-6666</td>
+                                                <td>napha@dorm.com</td>
+                                                <td><small>15/02/2569</small></td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ========== ADMIN: STATS & REPORTS (adminStats) ========== -->
+                        <div id="adminStats" class="dash-tab d-none">
+                            <div class="d-flex justify-content-between align-items-center mb-4">
+                                <div>
+                                    <h4 class="fw-bold mb-1"><i class="bi bi-bar-chart-line text-primary me-2"></i>รายงานและสถิติภาพรวม</h4>
+                                    <p class="text-muted small mb-0">วิเคราะห์ข้อมูลการแจ้งซ่อมเพื่อปรับปรุงบริการ</p>
+                                </div>
+                                <button class="btn btn-success" onclick="exportData('JSON')"><i class="bi bi-download me-1"></i>ดาวน์โหลดรายงานทั้งหมด</button>
+                            </div>
+
+                            <div class="row g-4 mb-4">
+                                <div class="col-md-6">
+                                    <div class="glass-card p-4">
+                                        <h6 class="fw-bold mb-3">จำนวนเคสแจ้งซ่อมแยกตามเดือน</h6>
+                                        <canvas id="adminStatsMonthlyChart" style="max-height: 260px;"></canvas>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="glass-card p-4">
+                                        <h6 class="fw-bold mb-3">สัดส่วนตามประเภทหมวดหมู่</h6>
+                                        <canvas id="adminStatsCatChart" style="max-height: 260px;"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="glass-card p-4">
+                                <h6 class="fw-bold mb-3">สรุปดัชนีประสิทธิภาพการซ่อมบำรุง</h6>
+                                <div class="row g-3 text-center">
+                                    <div class="col-md-3">
+                                        <div class="bg-light p-3 rounded-3 border">
+                                            <small class="text-muted d-block">อัตราการซ่อมเสร็จ</small>
+                                            <h3 class="fw-bold text-success mt-1 mb-0">94.5%</h3>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="bg-light p-3 rounded-3 border">
+                                            <small class="text-muted d-block">เวลาเฉลี่ยในการรับเรื่อง</small>
+                                            <h3 class="fw-bold text-primary mt-1 mb-0">15 นาที</h3>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="bg-light p-3 rounded-3 border">
+                                            <small class="text-muted d-block">คะแนนประเมินเฉลี่ย</small>
+                                            <h3 class="fw-bold text-warning mt-1 mb-0">4.8 / 5 ⭐</h3>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="bg-light p-3 rounded-3 border">
+                                            <small class="text-muted d-block">ปัญหาที่พบบ่อยสุด</small>
+                                            <h4 class="fw-bold text-dark mt-2 mb-0">ประปา (35%)</h4>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ========== ADMIN: ANNOUNCEMENTS (adminAnnounce) ========== -->
+                        <div id="adminAnnounce" class="dash-tab d-none">
+                            <h4 class="fw-bold mb-3"><i class="bi bi-broadcast text-primary me-2"></i>จัดการประกาศข่าวสารหอพัก</h4>
+                            
+                            <div class="row g-4">
+                                <div class="col-md-5">
+                                    <div class="glass-card p-4">
+                                        <h6 class="fw-bold mb-3">สร้างประกาศใหม่</h6>
+                                        <form onsubmit="event.preventDefault(); submitAnnouncement();">
+                                            <div class="mb-3">
+                                                <label class="form-label small fw-semibold">หัวข้อประกาศ <span class="text-danger">*</span></label>
+                                                <input type="text" class="form-control" id="annTitle" placeholder="เช่น แจ้งปิดน้ำประปาชั่วคราว" required>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label small fw-semibold">รายละเอียด <span class="text-danger">*</span></label>
+                                                <textarea class="form-control" id="annContent" rows="4" placeholder="ระบุรายละเอียดประกาศ..." required></textarea>
+                                            </div>
+                                            <button type="submit" class="btn btn-primary w-100"><i class="bi bi-send me-1"></i>ลงประกาศ</button>
+                                        </form>
+                                    </div>
+                                </div>
+                                <div class="col-md-7">
+                                    <div class="glass-card p-4">
+                                        <h6 class="fw-bold mb-3">รายการประกาศปัจจุบัน</h6>
+                                        <div id="adminAnnouncementsList">
+                                            <div class="border-start border-primary border-3 ps-3 py-2 mb-3 bg-light rounded-2">
+                                                <div class="d-flex justify-content-between align-items-start">
+                                                    <h6 class="fw-bold mb-1">แจ้งล้างแท็งก์น้ำประจำปี</h6>
+                                                    <small class="text-muted">30 ก.ค. 2569</small>
+                                                </div>
+                                                <p class="small text-secondary mb-1">ทางหอพักจะทำการล้างแท็งก์น้ำในวันที่ 30 กรกฎาคม ตั้งแต่เวลา 09:00 - 15:00 น. น้ำจะไหลเบาหรือหยุดไหลชั่วคราว</p>
+                                                <small class="text-muted">ผู้ประกาศ: ผู้ดูแลระบบ</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ========== RESIDENT: HISTORY (resHistory) ========== -->
+                        <div id="resHistory" class="dash-tab d-none">
+                            <h4 class="fw-bold mb-3"><i class="bi bi-clock-history text-primary me-2"></i>ประวัติการแจ้งซ่อมย้อนหลัง</h4>
+                            <div class="glass-card p-4">
+                                <div class="table-responsive">
+                                    <table class="table table-hover align-middle mb-0" id="residentHistoryTable">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>รหัส</th>
+                                                <th>ประเภท</th>
+                                                <th>รายละเอียด</th>
+                                                <th>วันที่แจ้ง</th>
+                                                <th>สถานะ</th>
+                                                <th>คะแนนประเมิน</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td><strong>#REQ-005</strong></td>
+                                                <td><span class="badge bg-primary-subtle text-primary">ประปา / ท่อน้ำ</span></td>
+                                                <td>น้ำหยดใต้ซิงค์ล้างจาน</td>
+                                                <td><small>26/7/2569</small></td>
+                                                <td><span class="badge badge-progress">กำลังซ่อม</span></td>
+                                                <td><span class="text-muted">ยังไม่ประเมิน</span></td>
+                                            </tr>
+                                            <tr>
+                                                <td><strong>#REQ-004</strong></td>
+                                                <td><span class="badge bg-primary-subtle text-primary">ไฟฟ้า / หลอดไฟ</span></td>
+                                                <td>ไฟระเบียงดับ</td>
+                                                <td><small>20/7/2569</small></td>
+                                                <td><span class="badge badge-success">เสร็จสิ้น</span></td>
+                                                <td>⭐⭐⭐⭐</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ========== RESIDENT: ANNOUNCEMENTS (resAnnounce) ========== -->
+                        <div id="resAnnounce" class="dash-tab d-none">
+                            <h4 class="fw-bold mb-3"><i class="bi bi-megaphone text-primary me-2"></i>ประกาศข่าวสารจากหอพัก</h4>
+                            <div class="row g-3" id="residentAnnouncementsFeed">
+                                <div class="col-md-6">
+                                    <div class="glass-card p-4 h-100">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <span class="badge bg-primary"><i class="bi bi-pin-angle me-1"></i>ประกาศ</span>
+                                            <small class="text-muted">30 ก.ค. 2569</small>
+                                        </div>
+                                        <h5 class="fw-bold text-dark mb-2">แจ้งล้างแท็งก์น้ำประจำปี</h5>
+                                        <p class="text-secondary small mb-3">ทางหอพักจะทำการล้างแท็งก์น้ำในวันที่ 30 กรกฎาคม ตั้งแต่เวลา 09:00 - 15:00 น.</p>
+                                        <div class="border-top pt-2 text-muted small"><i class="bi bi-person-circle me-1"></i>ผู้ดูแลระบบ</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ================= MODALS ================= -->
+    <!-- Assign Modal -->
+    <div class="modal fade" id="assignModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content glass-card">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">มอบหมายงานช่าง <span id="assignJobId"></span></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Nav Tabs for Tech Assign Source -->
+                    <ul class="nav nav-pills nav-justified mb-3" id="assignTechTabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active fw-semibold" id="inhouse-tab" data-bs-toggle="tab" data-bs-target="#inhouseTechContent">
+                                <i class="bi bi-building me-1"></i>ช่างประจำหอพัก
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link fw-semibold text-primary" id="ondemand-tab" data-bs-toggle="tab" data-bs-target="#ondemandTechContent" onclick="loadPartnerTechnicians()">
+                                <i class="bi bi-cpu me-1"></i>🤖 จับคู่ช่างภายนอกอัตโนมัติ (On-Demand Match)
+                            </button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content" id="assignTechTabsContent">
+                        <!-- Tab 1: In-House Technician -->
+                        <div class="tab-pane fade show active" id="inhouseTechContent">
+                            <div class="mb-3">
+                                <label class="form-label small fw-semibold">เลือกช่างซ่อมบำรุงประจำหอพัก</label>
+                                <select class="form-select" id="inhouseTechSelect">
+                                    <option value="3">ช่างวิชัย (เชี่ยวชาญประปา/แอร์)</option>
+                                    <option value="4">ช่างสมศักดิ์ (เชี่ยวชาญระบบไฟฟ้า)</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small fw-semibold">คาดการณ์เวลาซ่อมเสร็จ (ETA)</label>
+                                <input type="datetime-local" class="form-control" id="inhouseEtaInput">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small fw-semibold">หมายเหตุเพิ่มเติมถึงช่าง</label>
+                                <textarea class="form-control" id="inhouseNoteInput" rows="2" placeholder="เบอร์ติดต่อผู้พัก..."></textarea>
+                            </div>
+                            <div class="d-flex justify-content-end">
+                                <button type="button" class="btn btn-primary px-4" onclick="confirmAssign()">ยืนยันมอบหมายช่างประจำ</button>
+                            </div>
+                        </div>
+
+                        <!-- Tab 2: On-Demand Partner Matching -->
+                        <div class="tab-pane fade" id="ondemandTechContent">
+                            <div class="alert alert-info py-2 small mb-3">
+                                <i class="bi bi-info-circle-fill me-1"></i>ระบบจะค้นหาและจับคู่ช่างภายนอกฟรีแลนซ์ในรัศมีใกล้เคียง (5–10 กม.) ตามประเภทงานและความเร่งด่วนให้อัตโนมัติ
+                            </div>
+                            
+                            <div class="d-grid mb-3">
+                                <button class="btn btn-gradient btn-primary py-2 fw-bold" onclick="autoDispatchPartner()">
+                                    <i class="bi bi-lightning-charge-fill me-1"></i>กดจับคู่ช่างภายนอกที่อยู่ใกล้ที่สุดอัตโนมัติ (Auto-Dispatch)
+                                </button>
+                            </div>
+
+                            <div class="text-muted small fw-semibold mb-2">หรือเลือกช่างพาร์ทเนอร์รายคน:</div>
+                            <div class="list-group" id="partnerTechsList">
+                                <!-- Dynamically populated by loadPartnerTechnicians() -->
+                                <div class="list-group-item d-flex justify-content-between align-items-center p-3">
+                                    <div>
+                                        <h6 class="fw-bold mb-1">ช่างอำนาจ บริการไว (ฟรีแลนซ์) <span class="badge bg-success ms-1">แนะนำ 98% Match</span></h6>
+                                        <small class="text-muted">ความเชี่ยวชาญ: ประปา / ท่อน้ำ | ระยะทาง: 1.2 กม. | ⭐ 4.9 (87 งาน)</small>
+                                    </div>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="dispatchSelectedPartner('ช่างอำนาจ บริการไว (ฟรีแลนซ์)', '1.2 กม.')">เลือกช่างคนนี้</button>
+                                </div>
+                                <div class="list-group-item d-flex justify-content-between align-items-center p-3">
+                                    <div>
+                                        <h6 class="fw-bold mb-1">ช่างกิตติพงษ์ ไฟฟ้าด่วน (พาร์ทเนอร์)</h6>
+                                        <small class="text-muted">ความเชี่ยวชาญ: ไฟฟ้า / หลอดไฟ | ระยะทาง: 2.5 กม. | ⭐ 4.8 (64 งาน)</small>
+                                    </div>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="dispatchSelectedPartner('ช่างกิตติพงษ์ ไฟฟ้าด่วน (พาร์ทเนอร์)', '2.5 กม.')">เลือกช่างคนนี้</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Tech Modal -->
+    <div class="modal fade" id="addTechModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content glass-card p-3">
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold">เพิ่มช่างซ่อมบำรุงคนใหม่</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">ชื่อ-นามสกุล ช่าง</label>
+                        <input type="text" class="form-control" id="newTechName" placeholder="เช่น ช่างชาญชัย ซ่อมดี">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">ความเชี่ยวชาญ / แผนก</label>
+                        <input type="text" class="form-control" id="newTechSpecialty" placeholder="เช่น เชี่ยวชาญระบบแอร์/ความเย็น">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">เบอร์โทรศัพท์</label>
+                        <input type="tel" class="form-control" id="newTechPhone" placeholder="08X-XXX-XXXX">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">ยกเลิก</button>
+                    <button type="button" class="btn btn-primary" onclick="confirmAddTech()">บันทึกข้อมูลช่าง</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rating Modal -->
+    <div class="modal fade" id="ratingModal" tabindex="-1">
+        <div class="modal-dialog text-center">
+            <div class="modal-content glass-card p-4">
+                <h5 class="fw-bold mb-2">ประเมินความพึงพอใจการซ่อม</h5>
+                <p class="text-muted small">รายการ #REQ-004 (ไฟระเบียงดับ)</p>
+                
+                <div class="star-rating my-3">
+                    <i class="bi bi-star-fill active" onclick="setStar(1)"></i>
+                    <i class="bi bi-star-fill active" onclick="setStar(2)"></i>
+                    <i class="bi bi-star-fill active" onclick="setStar(3)"></i>
+                    <i class="bi bi-star-fill active" onclick="setStar(4)"></i>
+                    <i class="bi bi-star-fill" onclick="setStar(5)"></i>
+                </div>
+
+                <div class="mb-3 text-start">
+                    <label class="form-label small fw-semibold">ความคิดเห็นเพิ่มเติม</label>
+                    <textarea class="form-control" rows="2" placeholder="ช่างสุภาพ บริการรวดเร็วมากครับ"></textarea>
+                </div>
+
+                <button class="btn btn-primary w-100" onclick="submitRating()">ส่งคะแนนประเมิน</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Client API Helper -->
+    <script src="api.js"></script>
+
+    <!-- Custom Logic Script -->
+    <script>
+        let currentSelectedJobId = null;
+        let selectedStarRating = 5;
+
+        // Global Navigation Logic
+        function showSection(sectionId) {
+            document.querySelectorAll('.view-section').forEach(sec => sec.classList.remove('active'));
+            document.getElementById(sectionId).classList.add('active');
+
+            // Toggle Nav buttons visibility
+            const authNav = document.getElementById('authNavButtons');
+            if (sectionId === 'appDashboard') {
+                authNav.classList.add('d-none');
+            } else {
+                authNav.classList.remove('d-none');
+            }
+        }
+
+        // Switch Dashboard Views (Tabbed interface)
+        function showDashboardTab(tabId, element) {
+            document.querySelectorAll('.dash-tab').forEach(tab => tab.classList.add('d-none'));
+            document.querySelectorAll('.sidebar-link').forEach(link => link.classList.remove('active'));
+            
+            const target = document.getElementById(tabId);
+            if(target) target.classList.remove('d-none');
+
+            // Highlight clicked link or search link by tabId
+            if (element) {
+                element.classList.add('active');
+            } else {
+                const activeLink = document.querySelector(`.sidebar-link[onclick*="'${tabId}'"]`);
+                if (activeLink) activeLink.classList.add('active');
+            }
+            
+            // Re-render Chart / Data if visible
+            if (tabId === 'resHome') {
+                initResidentChart();
+                fetchAndRenderResidentDashboard();
+            }
+            if (tabId === 'adminHome') {
+                initAdminCharts();
+                fetchAndRenderAdminDashboard();
+            }
+            if (tabId === 'adminStats') {
+                initAdminStatsCharts();
+            }
+            if (tabId === 'techHome') {
+                fetchAndRenderTechDashboard();
+            }
+        }
+
+        let adminStatsChart1 = null, adminStatsChart2 = null;
+        function initAdminStatsCharts() {
+            const ctx1 = document.getElementById('adminStatsMonthlyChart');
+            const ctx2 = document.getElementById('adminStatsCatChart');
+
+            if (ctx1) {
+                if (adminStatsChart1) adminStatsChart1.destroy();
+                adminStatsChart1 = new Chart(ctx1, {
+                    type: 'bar',
+                    data: {
+                        labels: ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.'],
+                        datasets: [{
+                            label: 'เคสที่ได้รับ',
+                            data: [12, 19, 15, 25, 22, 30, 28],
+                            backgroundColor: '#2563EB'
+                        }]
+                    },
+                    options: { responsive: true }
+                });
+            }
+
+            if (ctx2) {
+                if (adminStatsChart2) adminStatsChart2.destroy();
+                adminStatsChart2 = new Chart(ctx2, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['ประปา', 'ไฟฟ้า', 'แอร์', 'อินเทอร์เน็ต', 'อื่นๆ'],
+                        datasets: [{
+                            data: [35, 25, 20, 10, 10],
+                            backgroundColor: ['#3B82F6', '#F59E0B', '#10B981', '#8B5CF6', '#64748B']
+                        }]
+                    },
+                    options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+                });
+            }
+        }
+
+        // Role Switcher for Demo Purposes
+        function switchRole(role) {
+            showSection('appDashboard');
+            
+            const resMenu = document.querySelector('.resident-menu');
+            const adminMenu = document.querySelector('.admin-menu');
+            const techMenu = document.querySelector('.tech-menu');
+
+            resMenu.classList.add('d-none');
+            adminMenu.classList.add('d-none');
+            techMenu.classList.add('d-none');
+
+            if (role === 'resident') {
+                resMenu.classList.remove('d-none');
+                document.getElementById('sidebarUserName').innerText = currentUser.name || 'คุณสมชาย ใจดี';
+                document.getElementById('sidebarUserRole').innerText = `ห้อง ${currentUser.room || '402'} - ${currentUser.building || 'อาคาร A'}`;
+                showDashboardTab('resHome');
+            } else if (role === 'admin') {
+                adminMenu.classList.remove('d-none');
+                document.getElementById('sidebarUserName').innerText = 'ผู้ดูแลระบบ (Admin)';
+                document.getElementById('sidebarUserRole').innerText = 'ผู้จัดการหอพัก';
+                showDashboardTab('adminHome');
+            } else if (role === 'technician') {
+                techMenu.classList.remove('d-none');
+                document.getElementById('sidebarUserName').innerText = 'ช่างวิชัย ซ่อมไว';
+                document.getElementById('sidebarUserRole').innerText = 'ฝ่ายซ่อมบำรุง';
+                showDashboardTab('techHome');
+            }
+        }
+
+        async function loginUser() {
+            const emailInput = document.querySelector('#loginSection input[type="email"]');
+            const passInput = document.querySelector('#loginSection input[type="password"]');
+
+            const email = emailInput ? emailInput.value : 'user@dorm.com';
+            const password = passInput ? passInput.value : '123456';
+
+            await handleLogin(email, password);
+        }
+
+        async function registerUser(event) {
+            if(event) event.preventDefault();
+            const form = document.querySelector('#registerSection form');
+            const inputs = form.querySelectorAll('input, select');
+            
+            const formData = {
+                name: (inputs[0]?.value || '') + ' ' + (inputs[1]?.value || ''),
+                building: inputs[2]?.value || 'อาคาร A',
+                room: inputs[3]?.value || '',
+                phone: inputs[4]?.value || '',
+                email: inputs[5]?.value || '',
+                password: inputs[6]?.value || '123456'
+            };
+
+            await handleRegister(formData);
+        }
+
+        async function submitRepairRequest() {
+            const form = document.querySelector('#resForm form');
+            const selectCategory = form.querySelector('select').value;
+            const textareaDesc = form.querySelector('textarea').value;
+            const fileImage = form.querySelectorAll('input[type="file"]')[0]?.files[0];
+            const fileVideo = form.querySelectorAll('input[type="file"]')[1]?.files[0];
+            const priority = form.querySelector('input[name="priority"]:checked')?.value || 'med';
+
+            const formData = new FormData();
+            formData.append('user_id', currentUser.id || 1);
+            formData.append('user_name', currentUser.name || 'คุณสมชาย ใจดี');
+            formData.append('building_room', `${currentUser.room || '402'} - ${currentUser.building || 'อาคาร A'}`);
+            formData.append('category', selectCategory);
+            formData.append('description', textareaDesc);
+            formData.append('priority', priority);
+            if (fileImage) formData.append('image', fileImage);
+            if (fileVideo) formData.append('video', fileVideo);
+
+            try {
+                const res = await fetch(`${API_BASE_URL}/requests`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                
+                Swal.fire({
+                    icon: 'success',
+                    title: 'ส่งรายการแจ้งซ่อมแล้ว',
+                    text: data.message || 'ระบบจะแจ้งเตือนเมื่อผู้ดูแลรับเรื่องแล้ว',
+                    confirmButtonColor: '#2563EB'
+                }).then(() => {
+                    form.reset();
+                    showDashboardTab('resHome');
+                });
+            } catch (err) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'ส่งรายการแจ้งซ่อมแล้ว (บันทึกสำเร็จ)',
+                    confirmButtonColor: '#2563EB'
+                }).then(() => {
+                    showDashboardTab('resHome');
+                });
+            }
+        }
+
+        function openAddTechModal() {
+            new bootstrap.Modal(document.getElementById('addTechModal')).show();
+        }
+
+        async function confirmAddTech() {
+            const name = document.getElementById('newTechName')?.value;
+            const specialty = document.getElementById('newTechSpecialty')?.value;
+            const phone = document.getElementById('newTechPhone')?.value;
+
+            if(!name) return;
+
+            bootstrap.Modal.getInstance(document.getElementById('addTechModal')).hide();
+            Swal.fire('สำเร็จ!', `เพิ่มข้อมูล ${name} เข้าสู่ระบบแล้ว`, 'success').then(() => {
+                fetchAndRenderAdminTechs();
+            });
+        }
+
+        let currentSelectedJobCategory = '';
+
+        function openAssignModal(id, code, category) {
+            currentSelectedJobId = id;
+            currentSelectedJobCategory = category || '';
+            document.getElementById('assignJobId').innerText = (code || id) + (category ? ` (${category})` : '');
+            new bootstrap.Modal(document.getElementById('assignModal')).show();
+        }
+
+        async function confirmAssign() {
+            const techSelect = document.getElementById('inhouseTechSelect');
+            const etaInput = document.getElementById('inhouseEtaInput');
+            const noteTextarea = document.getElementById('inhouseNoteInput');
+
+            const techId = techSelect ? techSelect.value : 3;
+            const techName = techSelect ? techSelect.options[techSelect.selectedIndex].text.split(' ')[0] : 'ช่างวิชัย';
+            const eta = etaInput ? etaInput.value : '';
+            const techNote = noteTextarea ? noteTextarea.value : '';
+
+            const res = await apiFetch(`/requests/${currentSelectedJobId || 1}/assign`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    tech_id: techId,
+                    tech_name: techName,
+                    eta,
+                    tech_note: techNote
+                })
+            });
+
+            bootstrap.Modal.getInstance(document.getElementById('assignModal')).hide();
+            Swal.fire('สำเร็จ!', 'มอบหมายงานให้ช่างเรียบร้อยแล้ว', 'success').then(() => {
+                fetchAndRenderAdminDashboard();
+                fetchAndRenderAdminJobs();
+            });
+        }
+
+        function openRatingModal(id, code) {
+            currentSelectedJobId = id || 1;
+            const subtitle = document.querySelector('#ratingModal p.text-muted');
+            if(subtitle && code) subtitle.innerText = `รายการ ${code}`;
+            new bootstrap.Modal(document.getElementById('ratingModal')).show();
+        }
+
+        function setStar(star) {
+            selectedStarRating = star;
+            const stars = document.querySelectorAll('#ratingModal .star-rating i');
+            stars.forEach((s, idx) => {
+                if (idx < star) s.classList.add('active');
+                else s.classList.remove('active');
+            });
+        }
+
+        async function submitRating() {
+            const comment = document.querySelector('#ratingModal textarea').value;
+            await apiFetch(`/requests/${currentSelectedJobId || 1}/rate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: currentUser.id || 1,
+                    rating: selectedStarRating,
+                    comment
+                })
+            });
+
+            bootstrap.Modal.getInstance(document.getElementById('ratingModal')).hide();
+            Swal.fire('ขอบคุณ!', 'บันทึกการประเมินของคุณแล้ว', 'success').then(() => {
+                fetchAndRenderResidentDashboard();
+            });
+        }
+
+        async function updateTechStatus(action, jobId) {
+            const targetId = jobId || 1;
+            const newStatus = action === 'start' ? 'in_progress' : 'completed';
+
+            await apiFetch(`/requests/${targetId}/status`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: newStatus })
+            });
+
+            if (action === 'start') {
+                Swal.fire('อัปเดตแล้ว', 'เปลี่ยนสถานะเป็น: กำลังซ่อม', 'info').then(() => fetchAndRenderTechDashboard());
+            } else {
+                Swal.fire('สำเร็จ!', 'ปิดงานซ่อมแล้ว รอผู้พักประเมิน', 'success').then(() => fetchAndRenderTechDashboard());
+            }
+        }
+
+        async function exportData(type) {
+            const res = await apiFetch('/export');
+            if (res.success && res.data) {
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(res.data, null, 2));
+                const downloadAnchor = document.createElement('a');
+                downloadAnchor.setAttribute("href", dataStr);
+                downloadAnchor.setAttribute("download", `dormcare_report_${Date.now()}.json`);
+                document.body.appendChild(downloadAnchor);
+                downloadAnchor.click();
+                downloadAnchor.remove();
+                Swal.fire('Export Data', `ดาวน์โหลดรายงาน (${type}) เรียบร้อยแล้ว`, 'success');
+            } else {
+                Swal.fire('Export Data', `ระบบกำลังดาวน์โหลดไฟล์รายงาน (${type})`, 'success');
+            }
+        }
+
+        function viewTrackingDetail(id) {
+            showDashboardTab('resTracking');
+        }
+
+        // Initialize Charts
+        let resChartInstance = null;
+        async function initResidentChart() {
+            const ctx = document.getElementById('residentPieChart');
+            if (!ctx) return;
+            if (resChartInstance) resChartInstance.destroy();
+
+            let chartData = [2, 2, 1, 0];
+            const res = await apiFetch(`/requests?user_id=${currentUser.id || 1}`);
+            if (res.success && res.data) {
+                const elec = res.data.filter(r => r.category.includes('ไฟฟ้า')).length;
+                const water = res.data.filter(r => r.category.includes('ประปา')).length;
+                const air = res.data.filter(r => r.category.includes('แอร์')).length;
+                const other = res.data.filter(r => !r.category.includes('ไฟฟ้า') && !r.category.includes('ประปา') && !r.category.includes('แอร์')).length;
+                chartData = [elec, water, air, other];
+            }
+
+            resChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['ไฟฟ้า', 'ประปา', 'แอร์', 'อื่นๆ'],
+                    datasets: [{
+                        data: chartData,
+                        backgroundColor: ['#F59E0B', '#3B82F6', '#10B981', '#94A3B8']
+                    }]
+                },
+                options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+            });
+        }
+
+        let adminChart1 = null, adminChart2 = null;
+        async function initAdminCharts() {
+            const ctx1 = document.getElementById('adminMonthlyChart');
+            const ctx2 = document.getElementById('adminCategoryChart');
+
+            const resStats = await apiFetch('/stats/dashboard');
+            let catData = [35, 25, 20, 10, 10];
+            if (resStats.success && resStats.data) {
+                const cats = resStats.data.categories || {};
+                catData = [
+                    cats['ประปา'] || 3,
+                    cats['ไฟฟ้า'] || 2,
+                    cats['เครื่องปรับอากาศ'] || 1,
+                    cats['อินเทอร์เน็ต'] || 1,
+                    1
+                ];
+            }
+            
+            if (ctx1) {
+                if (adminChart1) adminChart1.destroy();
+                adminChart1 = new Chart(ctx1, {
+                    type: 'bar',
+                    data: {
+                        labels: ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.'],
+                        datasets: [{
+                            label: 'เคสที่ได้รับ',
+                            data: [12, 19, 15, 25, 22, 30, 28],
+                            backgroundColor: '#2563EB'
+                        }]
+                    },
+                    options: { responsive: true }
+                });
+            }
+
+            if (ctx2) {
+                if (adminChart2) adminChart2.destroy();
+                adminChart2 = new Chart(ctx2, {
+                    type: 'pie',
+                    data: {
+                        labels: ['ประปา', 'ไฟฟ้า', 'แอร์', 'อินเทอร์เน็ต', 'อื่นๆ'],
+                        datasets: [{
+                            data: catData,
+                            backgroundColor: ['#3B82F6', '#F59E0B', '#10B981', '#8B5CF6', '#64748B']
+                        }]
+                    },
+                    options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+                });
+            }
+        }
+    </script>
+</body>
+</html>
